@@ -144,7 +144,7 @@ export class Renderer {
       url: string,
       isMobile: boolean,
       dimensions: ViewportDimensions,
-      options?: object): Promise<Buffer> {
+      options?: object & { selector?: string }): Promise<Buffer> {
     const page = await this.browser.newPage();
 
     // Page may reload when setting isMobile
@@ -176,9 +176,22 @@ export class Renderer {
       throw new ScreenshotError('Forbidden');
     }
 
+    let additionalOptions = {};
+    if (typeof options !== 'undefined' && typeof options.selector !== 'undefined') {
+      const selector = options.selector;
+      delete options.selector;
+      await page.waitForSelector(selector);
+      const clip = await page.evaluate(sel => {
+        const element = document.querySelector(sel);
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      }, selector);
+      additionalOptions = { ...additionalOptions, clip };
+    }
+
     // Must be jpeg & binary format.
     const screenshotOptions =
-        Object.assign({}, options, {type: 'jpeg', encoding: 'binary'});
+        Object.assign({}, options, {type: 'jpeg', encoding: 'binary'}, additionalOptions);
     // Screenshot returns a buffer based on specified encoding above.
     // https://github.com/GoogleChrome/puppeteer/blob/v1.8.0/docs/api.md#pagescreenshotoptions
     const buffer = await page.screenshot(screenshotOptions) as Buffer;
